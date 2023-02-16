@@ -1,36 +1,37 @@
 #!/usr/bin/env python3
-""" Web advanced task """
+""" Module for Implementing an expiring web cache and tracker """
 
-import requests
-import redis
 from functools import wraps
+import redis
+import requests
 from typing import Callable
 
-db = redis.Redis()
+r = redis.Redis()
 
 
-def url_access_counter(funct: Callable) -> Callable:
-    """ Decorator counting number of times
-    a URL is accessed """
+def count_requests(method: Callable) -> Callable:
+    """ Decortator for counting how many times a request
+    has been made """
 
-    @wraps(funct)
+    @wraps(method)
     def wrapper(url):
-        db_cache_key = "cached:" + url
-        counter_key = "count:" + url
-        db.incr(counter_key)
-        cached_data = db.get(db_cache_key)
-        if cached_data:
-            return cached_data.decode("utf-8")
+        """ Wrapper for decorator functionality """
+        r.incr(f"count:{url}")
+        cached_html = r.get(f"cached:{url}")
+        if cached_html:
+            return cached_html.decode('utf-8')
 
-        html_file = funct(url)
-        db.setex(db_cache_key, 10, html_file)
-        return html_file
+        html = method(url)
+        r.setex(f"cached:{url}", 10, html)
+        return html
 
     return wrapper
 
 
-@url_access_counter
+@count_requests
 def get_page(url: str) -> str:
-    """ Returns the HTML content in a url """
-    content = requests.get(url)
-    return content.text
+    """Uses the requests module to obtain the HTML
+    content of a particular URL and returns it.
+    """
+    req = requests.get(url)
+    return req.text
